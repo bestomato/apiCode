@@ -1,9 +1,8 @@
 #-*- coding:utf-8 -*-
 
 import base64
-import time
-import random
-from urllib import unquote
+from Crypto.Cipher import AES
+from urllib import unquote,quote
 import hashlib
 
 """"
@@ -12,104 +11,103 @@ import hashlib
 此代码仅为测试代码,使用时加入自己的逻辑代码
 """
 
-# ----------------------------------------------
+# -------------------- 加密解密数据 --------------------------
+# AES 加密数据
+# 测试和java（android）,oc(ios)都能很好的配合使用
+
+# 配置信息
+jiamikey = iv = '1234567890abcDEF' # 这里的16位秘钥需要自己生成设定，关键信息
+PADDING = '\0'
+pad_it = lambda s: s+(16 - len(s)%16)*PADDING
+
 def van_endata(data):
+    # 进行加密
+    generator = AES.new(jiamikey, AES.MODE_CBC, iv)
+    crypt = generator.encrypt(pad_it(data))
+    crypt = base64.b64encode(crypt)
 
-    # 使用base64处理
-    one = base64.encodestring(data)
+    print '-----加密-----'
+    print crypt
 
-    # 翻转字符串
-    two = ''
-    for i in one:
-        two = i + two
-
-    # 插入key,即在第n位插入n位随机数，n位当前天
-    dataLen = len(two)
-    day = time.strftime('%d',time.localtime(time.time()))
-    key = str(random.randint(0, 9))
-
-    n = 1
-    three = ''
-    sign = True
-    for i in two:
-        now = str(n)
-        if day == now:
-            three = three + key + i
-            sign = False
-        else:
-            three = three + i
-        n += 1
-    #for
-
-    # 获取天数大于本身的数据长度，没有连接上key，这样的话把他放入最后一位
-    if sign:
-        three = three + key
-
-    # 返回
-    return three
+    return crypt
 
 
 def van_dndata(data):
-    day = time.strftime('%d',time.localtime(time.time()))
-    dataLen = len(data)
+    # 解密
+    crypt = unquote(data)
+    crypt = base64.b64decode(crypt)
+    generator = AES.new(jiamikey, AES.MODE_CBC, iv)
+    recovery = generator.decrypt(crypt)
+    result = recovery.rstrip(PADDING)
 
-    n = 1
-    three = ''
-    sign = True
-    for i in data:
-        now = str(n)
-        if day == now:
-            three = three
-            sign = False
-        else:
-            three = three + i
-        n += 1
-    #for
+    print '-----解密-----'
+    print result
 
-    # 截取
-    if sign:
-        three = three[:-1]
+    return result
 
-    # 翻转字符串
-    two = ''
-    for i in three:
-        two = i + two
 
-    # 使用base64处理
-    one = base64.decodestring(two)
-    return one
 
 
 # ---------------------- 对传输数据加密 ------------------------
 strinfo = '{"uid":"12251522222222222222222", "nickname": "van小白?", "sex": "1"}'
 
-lockstr = van_endata(strinfo)
-result = van_dndata(lockstr)
+if False:
 
-print strinfo
-print lockstr
-print result
+    lockstr = van_endata(strinfo)
+    result = van_dndata(lockstr)
 
-# ---------------------- 请求用户身份验证  ----------------------
+    print '-------------------------'
+    print strinfo
+    print '-------------------------'
+    print lockstr
+    print '-------------------------'
+    print result
+    print '-------------------------'
+
+
+# ---------------------- 请求用户身份验证 构造请求  ----------------------
+# 数据，这里可以使用加密或不加密，根据接口效率和安全性要求来决定,需要注意就是必须和另外一端配合使用就行
+data = van_endata(str(strinfo))
+# 配置秘钥 ， 重要部分
+miyao = 'localKey'
+# 验证key生成，供接口服务器进行身份验证
+# 生成规则，原始数据拼接秘钥，然后进行md5
+keyStr = "%s%s" % (miyao,data)
+key = hashlib.md5(keyStr).hexdigest()
+# url编码，主要是避免base64后的=号之类的东西，
+# 但是应该在key生成后，因为接收到的参数一般会自动url解码，这样的话就会残生key验证失败
+data = quote(data)
+# 生成请求url
+url = "%s%s%s%s" % ('http://api.xxx.com/val=', data, '&key=', key)
+# 请求发送
+
+
+
+# ---------------------- 请求用户身份验证 服务端处理  ----------------------
 # 接收的参数 (get参数)
-value = 'eyJwbGF0Zm9ybWNvZGUiOjQsInBhc3N3b3JkIjoiZDg1NzhlZGY4NDU4Y2UwNmZiYzViYjc2YTU4YzVjYTQiLCJhY2NvdW50IjoiMTAwMDAwMDAwMDEiLCJnZXhpbmNsaWVudGlkIjoiMTM3ZGM5ZDI4ZTYzNTQ3ZjM1ODQyNTMzODY3MDVhNDkiLCJtZWRpYV90eXBlIjozfQ%3d%3d'
-# 验证key (get参数)
-key = 'ba28dcf0ef16612072ad57a102d60505'
+value = 'A1ZhiBxv4B%2Bg0HKBN5C0Q/WINM4gDcPJs3EUVoRYAZ08jrXOVO2CikhBMKCczixadXMUDbhGlIZgUwhNwwLHVGGqQyM0dFb1z8wtDi3JAW0%3D'
+# 接收的验证key (get参数)
+key = 'edd8b9c4b35a76f4e2613a1619d6a338'
 
 # 身份验证
 baseValue = unquote(value)
-strJson = "localKey321" + baseValue
+strJson = miyao + baseValue
 nowKey = hashlib.md5(strJson).hexdigest()
 
 
 if nowKey != key:
     # 检测身份失败
-    print 'no'
+    print 'error api'
 else:
-    # 检测身份合格
+    # 使用数据 baseValue
+    # 如果请求方加密这里同步需要解密数据
+    van_dndata(baseValue)
 
-    # 使用数据 value
-    print baseValue
+
+    # 检测身份合格,逻辑处理
+    # 这里返回的数据也可以使用加密或不加密，同理请求方同步处理即可
+
+
 
 
 
