@@ -16,7 +16,7 @@ import hashlib
 # 测试和java（android）,oc(ios)都能很好的配合使用
 
 # 配置信息
-jiamikey = iv = '1234567890abcDEF' # 这里的16位秘钥需要自己生成设定，关键信息
+jiamikey = iv = '' # 这里的16位秘钥需要自己生成设定，关键信息
 PADDING = '\0'
 pad_it = lambda s: s+(16 - len(s)%16)*PADDING
 
@@ -47,9 +47,8 @@ def van_dndata(data):
 
 
 
-
 # ---------------------- 对传输数据加密 ------------------------
-strinfo = '{"uid":"12251522222222222222222", "nickname": "van小白?", "sex": "1"}'
+strinfo = '{"uid":"12251522222222222222222", "nickname": "va白?", "sex": "1"}'
 
 if False:
 
